@@ -73,6 +73,46 @@ async def get_reseller(tg_id):
     return await resellers_col.find_one({"tg_id": str(tg_id)})
 
 
+
+
+async def get_user_balance(tg_id):
+    user = await resellers_col.find_one({"tg_id": str(tg_id)}, {"balance": 1})
+    if not user:
+        return None
+    return round(float(user.get("balance", 0.0) or 0.0), 2)
+
+
+async def change_user_balance(tg_id, amount):
+    """Atomically change a reseller's wallet balance. Returns (ok, new_balance)."""
+    tg_id_str = str(tg_id)
+    amount = round(float(amount), 2)
+    if amount == 0:
+        current = await get_user_balance(tg_id_str)
+        return (current is not None, current)
+
+    if amount < 0:
+        # Never allow an atomic debit to make the wallet negative.
+        result = await resellers_col.find_one_and_update(
+            {"tg_id": tg_id_str, "balance": {"$gte": abs(amount)}},
+            {"$inc": {"balance": amount}},
+            return_document=True,
+        )
+    else:
+        result = await resellers_col.find_one_and_update(
+            {"tg_id": tg_id_str},
+            {"$inc": {"balance": amount}},
+            return_document=True,
+        )
+
+    if not result:
+        exists = await resellers_col.find_one({"tg_id": tg_id_str})
+        if not exists:
+            return False, None
+        return False, round(float(exists.get("balance", 0.0) or 0.0), 2)
+
+    return True, round(float(result.get("balance", 0.0) or 0.0), 2)
+
+
 async def get_all_resellers():
     cursor = resellers_col.find({})
     return await cursor.to_list(length=None)
