@@ -976,7 +976,7 @@ async def execute_buy_process(message, lines, regex_pattern, currency, packages_
     # Header အတွက် Username သို့မဟုတ် First Name ကို ရယူမည်
     display_uname = telegram_user if telegram_user else (message.from_user.first_name or str(tg_id))
         
-    async with user_locks[tg_id]: 
+    async with user_locks[tg_id], smile_account_lock:
         parsed_orders = []
         
         for line in lines:
@@ -1057,35 +1057,56 @@ async def execute_buy_process(message, lines, regex_pattern, currency, packages_
             link_preview_options=types.LinkPreviewOptions(is_disabled=True)
         )
 
+        # ① User Wallet Balance စစ်
+        total_required_amount = sum(order['line_price'] for order in parsed_orders)
+        user_wallet_balance = await db.get_user_balance(tg_id)
+
+        if user_wallet_balance is None:
+            await loading_msg.delete()
+            return await message.reply("❌ User wallet not found.")
+
+        if user_wallet_balance < total_required_amount:
+            await loading_msg.delete()
+            needed_amount = total_required_amount - user_wallet_balance
+            error_msg = (
+                f"✖ <b>INSUFFICIENT WALLET BALANCE</b>\n\n"
+                f"<b><code>COST : {total_required_amount:,.2f} 🪙</code></b>\n"
+                f"<b><code>BALANCE : {user_wallet_balance:,.2f} 🪙</code></b>\n"
+                f"<b><code>NEED : {needed_amount:,.2f} 🪙</code></b>\n"
+                f"<code>━━━━━━━━━━━━━━━━━━</code>"
+            )
+            return await message.reply(error_msg, parse_mode=ParseMode.HTML)
+
+        # ② Official Smile.one Account Balance စစ်
         scraper = await get_main_scraper()
         headers = {
-            'X-Requested-With': 'XMLHttpRequest', 
+            'X-Requested-With': 'XMLHttpRequest',
             'Origin': 'https://www.smile.one'
         }
-        
+
         try:
             bals_before = await get_smile_balance(scraper, headers)
             if currency == 'BR':
                 initial_bal_for_receipt = bals_before['br_balance']
             else:
                 initial_bal_for_receipt = bals_before['ph_balance']
-        except:
-            initial_bal_for_receipt = 0.0
+        except Exception:
+            await loading_msg.delete()
+            return await message.reply(
+                "❌ Unable to verify official Smile.one balance. Purchase was not started and your wallet was not charged."
+            )
 
-        # 🌟 LOGIC အသစ်: ဝယ်မယ့် Item တွေရဲ့ စုစုပေါင်းကုန်ကျစရိတ်ကို အရင်တွက်မည် 🌟
-        total_required_amount = sum(order['line_price'] for order in parsed_orders)
-        
-        # Balance မလောက်ရင် အောက်ကဝယ်ယူမယ့် အဆင့်တွေကို ဆက်မသွားတော့ဘဲ လိုအပ်တဲ့ငွေကို ပြပေးမည်
         if initial_bal_for_receipt < total_required_amount:
             await loading_msg.delete()
             needed_amount = total_required_amount - initial_bal_for_receipt
             flag = f"<tg-emoji emoji-id='{BR_EMOJI}'>🇧🇷</tg-emoji>" if currency == 'BR' else f"<tg-emoji emoji-id='{PH_EMOJI}'>🇵🇭</tg-emoji>"
-            
             error_msg = (
-                f"✖ <b>ɪηꜱᴜꜰꜰɪᴄɪᴇηᴛ ʙᴀʟᴀɴᴄᴇ</b>\n\n"
-                f"{flag} <b><code>ᴄᴏꜱᴛ : {total_required_amount:,.2f} 🪙</code></b>\n"
-                f"{flag} <b><code>ɴᴇᴇᴅ : {needed_amount:,.2f} 🪙</code></b>\n"
-                f"<code>━━━━━━━━━━━━━━━━━━</code>"
+                f"✖ <b>INSUFFICIENT OFFICIAL BALANCE</b>\n\n"
+                f"{flag} <b><code>COST : {total_required_amount:,.2f} 🪙</code></b>\n"
+                f"{flag} <b><code>OFFICIAL BALANCE : {initial_bal_for_receipt:,.2f} 🪙</code></b>\n"
+                f"{flag} <b><code>NEED : {needed_amount:,.2f} 🪙</code></b>\n"
+                f"<code>━━━━━━━━━━━━━━━━━━</code>\n"
+                f"Your wallet was not charged."
             )
             return await message.reply(error_msg, parse_mode=ParseMode.HTML)
 
@@ -1246,7 +1267,23 @@ async def execute_buy_process(message, lines, regex_pattern, currency, packages_
         line_tasks = [process_order_line(order) for order in parsed_orders]
         line_results = await asyncio.gather(*line_tasks)
         time_taken_seconds = int(time.time() - start_time)
-        
+
+        # ④ Purchase Result စစ်ပြီး အောင်မြင်တဲ့ amount ကိုသာ User Wallet မှ ဖြတ်
+        actual_wallet_charge = round(
+            sum(float(res.get('total_spent', 0.0) or 0.0) for res in line_results),
+            2
+        )
+
+        if actual_wallet_charge > 0:
+            charged_ok, new_wallet_balance = await db.change_user_balance(
+                tg_id, -actual_wallet_charge
+            )
+            if not charged_ok:
+                await loading_msg.delete()
+                return await message.reply(
+                    "⚠️ Purchase processing completed, but the wallet charge could not be completed. Please contact the Owner before retrying."
+                )
+
         await loading_msg.delete() 
 
         if not line_results: 
