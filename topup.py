@@ -1911,31 +1911,45 @@ async def handle_smart_cookie_update(message: types.Message):
 
 @dp.message(or_f(Command("balance"), F.text.regexp(r"(?i)^\.bal(?:$|\s+)")))
 async def check_balance_command(message: types.Message):
-    if not await is_authorized(message.from_user.id): 
+    tg_id = message.from_user.id
+
+    if not await is_authorized(tg_id):
         return await message.reply("ɴᴏᴛ ᴀᴜᴛʜᴏʀɪᴢᴇᴅ ᴜsᴇʀ.")
-    
-    loading_msg = await message.reply("Fetching real balance from the official account...")
-    scraper = await get_main_scraper()
-    headers = {
-        'X-Requested-With': 'XMLHttpRequest', 
-        'Origin': 'https://www.smile.one'
-    }
-    
-    try:
-        anti_cache_url = f"https://www.smile.one/customer/order?_t={int(time.time())}"
-        balances = await get_smile_balance(scraper, headers, anti_cache_url)
-        
-        br_flag = f"<tg-emoji emoji-id='{BR_EMOJI}'>🇧🇷</tg-emoji>"
-        ph_flag = f"<tg-emoji emoji-id='{PH_EMOJI}'>🇵🇭</tg-emoji>"
-        
-        report = (
-            f"<blockquote><b>𝗢𝗙𝗙𝗜𝗖𝗜𝗔𝗟 𝗔𝗖𝗖𝗢𝗨𝗡𝗧 𝗕𝗔𝗟𝗔𝗡𝗖𝗘</b>\n\n"
-            f"{br_flag} <code>𝗕𝗥 𝗕𝗔𝗟𝗔𝗡𝗖𝗘 : ${balances.get('br_balance', 0.00):,.2f}</code>\n"
-            f"{ph_flag} <code>𝗣𝗛 𝗕𝗔𝗟𝗔𝗡𝗖𝗘 : ${balances.get('ph_balance', 0.00):,.2f}</code></blockquote>"
-        )
-        await loading_msg.edit_text(report, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        await loading_msg.edit_text(f"❌ Error fetching balance: {str(e)}")
+
+    # OWNER: .bal = shared official Smile.one account balance.
+    if tg_id == OWNER_ID:
+        loading_msg = await message.reply("Fetching real balance from the official account...")
+        scraper = await get_main_scraper()
+        headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Origin': 'https://www.smile.one'
+        }
+        try:
+            anti_cache_url = f"https://www.smile.one/customer/order?_t={int(time.time())}"
+            balances = await get_smile_balance(scraper, headers, anti_cache_url)
+            br_flag = f"<tg-emoji emoji-id='{BR_EMOJI}'>🇧🇷</tg-emoji>"
+            ph_flag = f"<tg-emoji emoji-id='{PH_EMOJI}'>🇵🇭</tg-emoji>"
+            report = (
+                f"<blockquote><b>𝗢𝗙𝗙𝗜𝗖𝗜𝗔𝗟 𝗔𝗖𝗖𝗢𝗨𝗡𝗧 𝗕𝗔𝗟𝗔𝗡𝗖𝗘</b>\n\n"
+                f"{br_flag} <code>𝗕𝗥 𝗕𝗔𝗟𝗔𝗡𝗖𝗘 : ${balances.get('br_balance', 0.00):,.2f}</code>\n"
+                f"{ph_flag} <code>𝗣𝗛 𝗕𝗔𝗟𝗔𝗡𝗖𝗘 : ${balances.get('ph_balance', 0.00):,.2f}</code></blockquote>"
+            )
+            await loading_msg.edit_text(report, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await loading_msg.edit_text(f"❌ Error fetching balance: {str(e)}")
+        return
+
+    # USER: .bal = this Telegram user's own wallet only.
+    user_wallet_balance = await db.get_user_balance(tg_id)
+    if user_wallet_balance is None:
+        return await message.reply("❌ User wallet not found.")
+
+    await message.reply(
+        f"<blockquote><b>💰 𝗨𝗦𝗘𝗥 𝗪𝗔𝗟𝗟𝗘𝗧</b>\n\n"
+        f"👤 <code>USER ID : {tg_id}</code>\n"
+        f"💰 <code>𝗕𝗔𝗟𝗔𝗡𝗖𝗘 : {user_wallet_balance:,.2f} 🪙</code></blockquote>",
+        parse_mode=ParseMode.HTML
+    )
 
 
 @dp.message(F.text.regexp(r"(?i)^(?:msc|mlb|br|b)\s+\d+"))
@@ -2102,7 +2116,7 @@ async def send_help_message(message: types.Message):
         f"<b>👤 𝐔𝐬𝐞𝐫 𝐓𝐨𝐨𝐥𝐬 (အသုံးပြုသူများအတွက်)</b>\n"
         f"🔹 <code>.topup Code b</code>  : BR Smile Code ဖြည့်ရန်\n"
         f"🔹 <code>.topup Code p</code>  : PH Smile Code ဖြည့်ရန်\n"
-        f"🔹 <code>.bal</code>      : Official Balance စစ်ရန်\n"
+        f"🔹 <code>.bal</code>      : Owner = Official Balance / User = User Wallet\n"
         f"🔹 <code>.addbal USER_ID AMOUNT</code> : Owner balance ထည့်ရန်\n"
         f"🔹 <code>.rmbal USER_ID AMOUNT</code> : Owner balance ပြန်နှုတ်ရန်\n"
         f"🔹 <code>.his</code>      : မိမိဝယ်ယူခဲ့သော မှတ်တမ်းကြည့်ရန်\n"
