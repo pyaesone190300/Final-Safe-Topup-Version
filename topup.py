@@ -1944,6 +1944,72 @@ async def handle_ph_mcc(message: types.Message):
         await message.reply(f"System Error: {str(e)}")
 
 
+@dp.message(F.text.regexp(r"(?i)^\.addbal\s+\d+\s+\d+(?:\.\d+)?$"))
+async def add_balance_command(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return await message.reply("❌ Only the Owner can change user balance.")
+
+    parts = message.text.split()
+    target_id = parts[1].strip()
+    amount = float(parts[2])
+
+    if amount <= 0:
+        return await message.reply("❌ Amount must be greater than 0.")
+
+    ok, new_balance = await db.change_user_balance(target_id, amount)
+
+    if not ok:
+        if new_balance is None:
+            return await message.reply(
+                f"❌ User ID `{target_id}` is not authorized."
+            )
+        return await message.reply(
+            f"❌ Balance update failed.\n"
+            f"💰 Current Balance: `{new_balance:,.2f}`"
+        )
+
+    await message.reply(
+        f"✅ Balance added\n\n"
+        f"👤 User ID: `{target_id}`\n"
+        f"➕ Added: `{amount:,.2f}`\n"
+        f"💰 New Balance: `{new_balance:,.2f}`"
+    )
+
+
+@dp.message(F.text.regexp(r"(?i)^\.rmbal\s+\d+\s+\d+(?:\.\d+)?$"))
+async def remove_balance_command(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return await message.reply("❌ Only the Owner can change user balance.")
+
+    parts = message.text.split()
+    target_id = parts[1].strip()
+    amount = float(parts[2])
+
+    if amount <= 0:
+        return await message.reply("❌ Amount must be greater than 0.")
+
+    ok, new_balance = await db.change_user_balance(target_id, -amount)
+
+    if not ok:
+        if new_balance is None:
+            return await message.reply(
+                f"❌ User ID `{target_id}` is not authorized."
+            )
+        return await message.reply(
+            f"❌ Insufficient balance.\n\n"
+            f"👤 User ID: `{target_id}`\n"
+            f"💰 Current Balance: `{new_balance:,.2f}`"
+        )
+
+    await message.reply(
+        f"✅ Balance removed\n\n"
+        f"👤 User ID: `{target_id}`\n"
+        f"➖ Removed: `{amount:,.2f}`\n"
+        f"💰 New Balance: `{new_balance:,.2f}`"
+    )
+
+
+
 @dp.message(or_f(Command("maintenance"), F.text.regexp(r"(?i)^\.maintenance(?:$|\s+)")))
 async def toggle_maintenance(message: types.Message):
     global IS_MAINTENANCE
