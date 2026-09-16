@@ -1689,6 +1689,55 @@ async def process_topup_job_ph(job: TopupJob):
 
 
 
+@dp.message(F.text.regexp(r"(?i)^\.addbal\s+\d+\s+\d+(?:\.\d+)?$"))
+async def add_balance_command(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return await message.reply("❌ Only the Owner can change user balance.")
+
+    parts = message.text.split()
+    target_id = parts[1].strip()
+    amount = float(parts[2])
+    if amount <= 0:
+        return await message.reply("❌ Amount must be greater than 0.")
+
+    ok, new_balance = await db.change_user_balance(target_id, amount)
+    if not ok:
+        if new_balance is None:
+            return await message.reply(f"❌ User ID `{target_id}` is not authorized.")
+        return await message.reply(f"❌ Balance update failed. Current balance: `{new_balance:,.2f}`")
+
+    await message.reply(
+        f"✅ Balance added\n\n👤 User ID: `{target_id}`\n"
+        f"➕ Added: `{amount:,.2f}`\n💰 New Balance: `{new_balance:,.2f}`"
+    )
+
+
+@dp.message(F.text.regexp(r"(?i)^\.rmbal\s+\d+\s+\d+(?:\.\d+)?$"))
+async def remove_balance_command(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return await message.reply("❌ Only the Owner can change user balance.")
+
+    parts = message.text.split()
+    target_id = parts[1].strip()
+    amount = float(parts[2])
+    if amount <= 0:
+        return await message.reply("❌ Amount must be greater than 0.")
+
+    ok, new_balance = await db.change_user_balance(target_id, -amount)
+    if not ok:
+        if new_balance is None:
+            return await message.reply(f"❌ User ID `{target_id}` is not authorized.")
+        return await message.reply(
+            f"❌ Insufficient balance.\n\n👤 User ID: `{target_id}`\n"
+            f"💰 Current Balance: `{new_balance:,.2f}`"
+        )
+
+    await message.reply(
+        f"✅ Balance removed\n\n👤 User ID: `{target_id}`\n"
+        f"➖ Removed: `{amount:,.2f}`\n💰 New Balance: `{new_balance:,.2f}`"
+    )
+
+
 @dp.message(or_f(Command("add"), F.text.regexp(r"(?i)^\.add(?:$|\s+)")))
 async def add_reseller(message: types.Message):
     if message.from_user.id != OWNER_ID: 
@@ -1944,72 +1993,6 @@ async def handle_ph_mcc(message: types.Message):
         await message.reply(f"System Error: {str(e)}")
 
 
-@dp.message(F.text.regexp(r"(?i)^\.addbal\s+\d+\s+\d+(?:\.\d+)?$"))
-async def add_balance_command(message: types.Message):
-    if message.from_user.id != OWNER_ID:
-        return await message.reply("❌ Only the Owner can change user balance.")
-
-    parts = message.text.split()
-    target_id = parts[1].strip()
-    amount = float(parts[2])
-
-    if amount <= 0:
-        return await message.reply("❌ Amount must be greater than 0.")
-
-    ok, new_balance = await db.change_user_balance(target_id, amount)
-
-    if not ok:
-        if new_balance is None:
-            return await message.reply(
-                f"❌ User ID `{target_id}` is not authorized."
-            )
-        return await message.reply(
-            f"❌ Balance update failed.\n"
-            f"💰 Current Balance: `{new_balance:,.2f}`"
-        )
-
-    await message.reply(
-        f"✅ Balance added\n\n"
-        f"👤 User ID: `{target_id}`\n"
-        f"➕ Added: `{amount:,.2f}`\n"
-        f"💰 New Balance: `{new_balance:,.2f}`"
-    )
-
-
-@dp.message(F.text.regexp(r"(?i)^\.rmbal\s+\d+\s+\d+(?:\.\d+)?$"))
-async def remove_balance_command(message: types.Message):
-    if message.from_user.id != OWNER_ID:
-        return await message.reply("❌ Only the Owner can change user balance.")
-
-    parts = message.text.split()
-    target_id = parts[1].strip()
-    amount = float(parts[2])
-
-    if amount <= 0:
-        return await message.reply("❌ Amount must be greater than 0.")
-
-    ok, new_balance = await db.change_user_balance(target_id, -amount)
-
-    if not ok:
-        if new_balance is None:
-            return await message.reply(
-                f"❌ User ID `{target_id}` is not authorized."
-            )
-        return await message.reply(
-            f"❌ Insufficient balance.\n\n"
-            f"👤 User ID: `{target_id}`\n"
-            f"💰 Current Balance: `{new_balance:,.2f}`"
-        )
-
-    await message.reply(
-        f"✅ Balance removed\n\n"
-        f"👤 User ID: `{target_id}`\n"
-        f"➖ Removed: `{amount:,.2f}`\n"
-        f"💰 New Balance: `{new_balance:,.2f}`"
-    )
-
-
-
 @dp.message(or_f(Command("maintenance"), F.text.regexp(r"(?i)^\.maintenance(?:$|\s+)")))
 async def toggle_maintenance(message: types.Message):
     global IS_MAINTENANCE
@@ -2083,6 +2066,8 @@ async def send_help_message(message: types.Message):
         f"🔹 <code>.topup Code b</code>  : BR Smile Code ဖြည့်ရန်\n"
         f"🔹 <code>.topup Code p</code>  : PH Smile Code ဖြည့်ရန်\n"
         f"🔹 <code>.bal</code>      : Official Balance စစ်ရန်\n"
+        f"🔹 <code>.addbal USER_ID AMOUNT</code> : Owner balance ထည့်ရန်\n"
+        f"🔹 <code>.rmbal USER_ID AMOUNT</code> : Owner balance ပြန်နှုတ်ရန်\n"
         f"🔹 <code>.his</code>      : မိမိဝယ်ယူခဲ့သော မှတ်တမ်းကြည့်ရန်\n"
         f"🔹 <code>.clean</code>    : မှတ်တမ်းများ ဖျက်ရန်\n"
     )
