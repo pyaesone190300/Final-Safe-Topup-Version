@@ -50,8 +50,14 @@ async def init_owner(owner_id):
     if not existing_owner:
         await resellers_col.insert_one({
             "tg_id": owner_str,
-            "username": "Owner"
+            "username": "Owner",
+            "balance": 0.0
         })
+    elif "balance" not in existing_owner:
+        await resellers_col.update_one(
+            {"tg_id": owner_str},
+            {"$set": {"balance": 0.0}}
+        )
 
 
 async def get_main_cookie():
@@ -126,7 +132,8 @@ async def add_reseller(tg_id, username):
     if not existing_user:
         await resellers_col.insert_one({
             "tg_id": tg_id_str,
-            "username": username
+            "username": username,
+            "balance": 0.0
         })
         return True
         
