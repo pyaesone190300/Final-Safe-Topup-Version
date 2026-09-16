@@ -1,6 +1,7 @@
 import os
 import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -95,13 +96,13 @@ async def change_user_balance(tg_id, amount):
         result = await resellers_col.find_one_and_update(
             {"tg_id": tg_id_str, "balance": {"$gte": abs(amount)}},
             {"$inc": {"balance": amount}},
-            return_document=True,
+            return_document=ReturnDocument.AFTER,
         )
     else:
         result = await resellers_col.find_one_and_update(
             {"tg_id": tg_id_str},
             {"$inc": {"balance": amount}},
-            return_document=True,
+            return_document=ReturnDocument.AFTER,
         )
 
     if not result:
