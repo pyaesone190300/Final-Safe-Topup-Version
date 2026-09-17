@@ -1403,6 +1403,106 @@ async def execute_buy_process(message, lines, regex_pattern, currency, packages_
 
 
 
+@dp.message(or_f(Command("role"), F.text.regexp(r"(?i)^\.role(?:$|\s+)")))
+async def handle_check_role(message: types.Message):
+    if not await is_authorized(message.from_user.id):
+        return await message.reply("ɴᴏᴛ ᴀᴜᴛʜᴏʀɪᴢᴇᴅ ᴜsᴇʀ.")
+
+    match = re.search(r"(?i)^[./]?role\s+(\d+)\s*[\(]?\s*(\d+)\s*[\)]?", message.text.strip())
+    if not match:
+        return await message.reply("❌ Invalid format. Use: `.role 12345678 1234`")
+
+    game_id, zone_id = match.group(1).strip(), match.group(2).strip()
+    loading_msg = await message.reply("Checking account data...", parse_mode=ParseMode.HTML)
+
+    url_caliph = 'https://cekidml.caliph.dev/api/validasi'
+    params_caliph = {'id': game_id, 'serverid': zone_id}
+    headers_caliph = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Referer': 'https://cekidml.caliph.dev/',
+        'X-Requested-With': 'XMLHttpRequest'
+    }
+
+    url_malsawma = 'https://www.malsawmastore.in/gadget/doublediamonds_action.php'
+    payload_malsawma = {'id': game_id, 'zone': zone_id}
+    headers_malsawma = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
+        'Origin': 'https://www.malsawmastore.in',
+        'Referer': 'https://www.malsawmastore.in/gadget/doublediamonds',
+        'Accept': 'application/json, text/javascript, */*; q=0.01'
+    }
+
+    try:
+        async with AsyncSession(impersonate="safari_ios") as local_scraper:
+            await local_scraper.get('https://cekidml.caliph.dev/', headers=headers_caliph, timeout=15)
+            res_caliph, res_malsawma = await asyncio.gather(
+                local_scraper.get(url_caliph, params=params_caliph, headers=headers_caliph, timeout=15),
+                local_scraper.post(url_malsawma, data=payload_malsawma, headers=headers_malsawma, timeout=15)
+            )
+
+        ig_name = "Unknown"
+        region = "Unknown"
+
+        try:
+            data_caliph = res_caliph.json()
+            if data_caliph.get('status') == 'success':
+                result_data = data_caliph.get('result', {})
+                ig_name = result_data.get('nickname', 'Unknown')
+                region = result_data.get('country', 'Unknown')
+            else:
+                error_msg = data_caliph.get('message') or data_caliph.get('msg') or "Game ID သို့မဟုတ် Zone ID မှားယွင်းနေပါသည်။"
+                return await loading_msg.edit_text(f"❌ <b>Invalid Account:</b> {html.escape(str(error_msg))}", parse_mode=ParseMode.HTML)
+        except Exception:
+            debug_msg = res_caliph.text[:120].replace('<', '&lt;').replace('>', '&gt;').strip()
+            return await loading_msg.edit_text(f"❌ <b>API Error:</b>\n<code>{debug_msg}...</code>", parse_mode=ParseMode.HTML)
+
+        limit_50 = limit_150 = limit_250 = limit_500 = True
+        debug_bonus_error = ""
+
+        try:
+            data_double = res_malsawma.json()
+            if str(data_double.get('status', '')).lower() == 'true':
+                dd_data = data_double.get('dd', {}) or {}
+                limit_50 = not bool(dd_data.get('50', False))
+                limit_150 = not bool(dd_data.get('150', False))
+                limit_250 = not bool(dd_data.get('250', False))
+                limit_500 = not bool(dd_data.get('500', False))
+            else:
+                debug_bonus_error = " <i>(Bonus Data Unavailable)</i>"
+        except Exception:
+            debug_bonus_error = " <i>(Bonus Data Error)</i>"
+
+        style_50 = "danger" if limit_50 else "success"
+        style_150 = "danger" if limit_150 else "success"
+        style_250 = "danger" if limit_250 else "success"
+        style_500 = "danger" if limit_500 else "success"
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Bᴏɴᴜs 50+50", callback_data="ignore", style=style_50),
+                InlineKeyboardButton(text="Bᴏɴᴜs 150+150", callback_data="ignore", style=style_150)
+            ],
+            [
+                InlineKeyboardButton(text="Bᴏɴᴜs 250+250", callback_data="ignore", style=style_250),
+                InlineKeyboardButton(text="Bᴏɴᴜs 500+500", callback_data="ignore", style=style_500)
+            ]
+        ])
+
+        final_report = (
+            f"<u><b>Mᴏʙɪʟᴇ Lᴇɢᴇɴᴅs Bᴀɴɢ Bᴀɴɢ</b></u>\n\n"
+            f"🆔 <code>{'User ID' :<9}:</code> <code>{game_id}</code> (<code>{zone_id}</code>)\n"
+            f"👤 <code>{'Nickname':<9}:</code> {html.escape(str(ig_name))}\n"
+            f"🌍 <code>{'Region'  :<9}:</code> {html.escape(str(region))}\n"
+            f"────────────────\n\n"
+            f"🎁 <b>Fɪʀsᴛ Rᴇᴄʜᴀʀɢᴇ Bᴏɴᴜs Sᴛᴀᴛᴜs</b>{debug_bonus_error}"
+        )
+
+        await loading_msg.edit_text(final_report, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await loading_msg.edit_text(f"❌ System Error: {html.escape(str(e))}", parse_mode=ParseMode.HTML)
+
+
 @dp.message(F.text.regexp(r"(?i)^\.topup\s+([a-zA-Z0-9]+)\s+b\s*$"))
 async def handle_topup_br(message: types.Message):
     if not await is_authorized(message.from_user.id):
