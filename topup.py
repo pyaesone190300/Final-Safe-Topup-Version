@@ -74,10 +74,10 @@ GLOBAL_CSRF = {'mlbb_br': None, 'mlbb_ph': None, 'mcc_br': None, 'mcc_ph': None}
 # 2. Package Definitions
 # ==========================================
 DOUBLE_DIAMOND_PACKAGES = {
-    '55': [{'pid': '22590', 'price': 39.0, 'name': '50+50 💎'}],
-    '165': [{'pid': '22591', 'price': 116.9, 'name': '150+150 💎'}],
-    '275': [{'pid': '22592', 'price': 187.5, 'name': '250+250 💎'}],
-    '565': [{'pid': '22593', 'price': 385.0, 'name': '500+500 💎'}],
+    'B50': [{'pid': '22590', 'price': 39.0, 'name': '50+50 💎'}],
+    'B150': [{'pid': '22591', 'price': 116.9, 'name': '150+150 💎'}],
+    'B250': [{'pid': '22592', 'price': 187.5, 'name': '250+250 💎'}],
+    'B500': [{'pid': '22593', 'price': 385.0, 'name': '500+500 💎'}],
 }
 
 BR_PACKAGES = {
@@ -107,6 +107,7 @@ BR_PACKAGES = {
     'tp': [{'pid': '33', 'price': 402.5, 'name': 'Twilight Passage'}],
     'web': [{'pid': '26555', 'price': 39.0, 'name': 'Elite Weekly Paackage'}],
     'wp': [{'pid': '16642', 'price': 76.0, 'name': 'Weekly Pass'}],
+    'wp1': [{'pid': '16642', 'price': 76.0, 'name': 'Weekly Pass'}],
     'wp2': [{'pid': '16642', 'price': 76.0, 'name': 'Weekly Pass'} for _ in range(2)],
     'wp3': [{'pid': '16642', 'price': 76.0, 'name': 'Weekly Pass'} for _ in range(3)],
     'wp4': [{'pid': '16642', 'price': 76.0, 'name': 'Weekly Pass'} for _ in range(4)],
@@ -133,6 +134,7 @@ PH_PACKAGES = {
     '6042': [{'pid': '221', 'price': 4750.00, 'name': '6042 💎'}],
     'tp': [{'pid': '214', 'price': 475.00, 'name': 'twilight pass 💎'}],
     'wp': [{'pid': '16641', 'price': 95.00, 'name': 'Weekly Pass'}],
+    'wp1': [{'pid': '16641', 'price': 95.00, 'name': 'Weekly Pass'}],
     'wp2': [{'pid': '16641', 'price': 95.00, 'name': 'Weekly Pass'} for _ in range(2)],
     'wp3': [{'pid': '16641', 'price': 95.00, 'name': 'Weekly Pass'} for _ in range(3)],
     'wp4': [{'pid': '16641', 'price': 95.00, 'name': 'Weekly Pass'} for _ in range(4)],
@@ -2199,6 +2201,60 @@ async def remove_scam_id(message: types.Message):
         await message.reply(f"⚠️ ထို ID သည် Scammer စာရင်းထဲတွင် မရှိပါ။")
 
 
+@dp.message(or_f(Command("listmcgg"), F.text.regexp(r"(?i)^\.listmcgg$")))
+async def handle_listmcgg(message: types.Message):
+    pricelist = (
+        "♟️ MAGIC CHESS GO GO PRICELIST ♟️\n"
+        "=========================\n\n"
+
+        "🇧🇷 Brazil (BR) Server\n"
+        "-------------------------\n"
+        "86             : 62.5 🪙\n"
+        "172            : 125.0 🪙\n"
+        "257            : 187.0 🪙\n"
+        "343            : 250.0 🪙\n"
+        "429            : 309.0 🪙\n"
+        "516            : 375.0 🪙\n"
+        "600            : 427.0 🪙\n"
+        "706            : 500.0 🪙\n"
+        "878            : 625.0 🪙\n"
+        "963            : 687.0 🪙\n"
+        "1049           : 749.5 🪙\n"
+        "1135           : 812.0 🪙\n"
+        "1412           : 1000.0 🪙\n"
+        "1584           : 1105.0 🪙\n"
+        "1755           : 1249.5 🪙\n"
+        "2195           : 1500.0 🪙\n"
+        "3688           : 2500.0 🪙\n"
+        "5532           : 3750.0 🪙\n"
+        "9288           : 6250.0 🪙\n"
+        "b50            : 40.0 🪙 (50+50)\n"
+        "b150           : 120.0 🪙 (150+150)\n"
+        "b250           : 200.0 🪙 (250+250)\n"
+        "b500           : 400.0 🪙 (500+500)\n"
+        "wp             : 99.9 🪙\n\n"
+
+        "🇵🇭 Philippines (PH) Server\n"
+        "-------------------------\n"
+        "5              : 4.75 🪙\n"
+        "11             : 9.03 🪙\n"
+        "22             : 18.05 🪙\n"
+        "56             : 45.13 🪙\n"
+        "112            : 90.25 🪙\n"
+        "223            : 180.50 🪙\n"
+        "339            : 270.75 🪙\n"
+        "570            : 451.25 🪙\n"
+        "1163           : 902.50 🪙\n"
+        "2398           : 1805.0 🪙\n"
+        "6042           : 4512.5 🪙\n"
+        "wp             : 95.0 🪙\n"
+        "lukas          : 47.45 🪙\n"
+        "battlefordis.  : 47.45 🪙\n"
+        "========================="
+    )
+
+    await message.reply(f"<code>{pricelist}</code>", parse_mode=ParseMode.HTML)
+
 
 @dp.message(or_f(Command("listmlbb"), F.text.regexp(r"(?i)^\.listmlbb$")))
 async def handle_listmlbb(message: types.Message):
@@ -2232,14 +2288,14 @@ async def handle_listmlbb(message: types.Message):
         "5532           : 3660.0 🪙\n"
         "7376           : 4848.0 🪙\n"
         "9288           : 6079.0 🪙\n"
-        "tp            : 402.5 🪙\n"
+        "tp             : 402.5 🪙\n"
         "wp             : 76.0 🪙 (wp1-10)\n"
         "web            : 39.0 🪙\n"
         "meb            : 196.5 🪙\n"
-        "55              : 39.0 🪙\n"
-        "165             : 116.9 🪙\n"
-        "275             : 187.5 🪙\n"
-        "565             : 385.0 🪙\n\n"
+        "B50            : 39.0 🪙\n"
+        "B150           : 116.9 🪙\n"
+        "B250           : 187.5 🪙\n"
+        "B500           : 385.0 🪙\n\n"
 
         "🇵🇭 Philippines (PH) Server\n"
         "-------------------------\n"
@@ -2253,13 +2309,13 @@ async def handle_listmlbb(message: types.Message):
         "1163           : 950.0 🪙\n"
         "2398           : 1900.0 🪙\n"
         "6042           : 4750.0 🪙\n"
-        "wp         : 95.0 🪙\n"
+        "wp             : 95.0 🪙\n"
         "meb            : 233.7 🪙\n"
         "web            : 47.46 🪙\n"
         "========================="
     )
 
-    await message.reply(f"<pre>{pricelist}</pre>", parse_mode=ParseMode.HTML)
+    await message.reply(f"<code>{pricelist}</code>", parse_mode=ParseMode.HTML)
 
 
 
