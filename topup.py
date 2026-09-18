@@ -2202,43 +2202,51 @@ async def remove_scam_id(message: types.Message):
 @dp.message(or_f(Command("help"), F.text.regexp(r"(?i)^\.help$")))
 async def send_help_message(message: types.Message):
     is_owner = (message.from_user.id == OWNER_ID)
-    
+    help_image_path = os.path.join(os.path.dirname(__file__), "assets", "help.jpg")
+
+    # Try to send the command poster first. If the image is missing,
+    # unreadable, or Telegram rejects the photo, fall back to plain text.
+    if os.path.exists(help_image_path):
+        try:
+            with open(help_image_path, "rb") as photo_file:
+                photo = BufferedInputFile(photo_file.read(), filename="help.jpg")
+            caption = "🤖 <b>Sajii Dia BOT Commands</b>\n"
+            if is_owner:
+                caption += "👑 <b>Owner mode</b> — Admin commands are available to you."
+            else:
+                caption += "👤 <b>User mode</b> — Use the commands shown above."
+            await message.reply_photo(
+                photo=photo,
+                caption=caption,
+                parse_mode=ParseMode.HTML,
+            )
+            return
+        except Exception as e:
+            print(f"⚠️ Failed to send help image, using text fallback: {e}")
+
+    # Text fallback: used when the help image is missing/unreadable or
+    # Telegram cannot send the photo.
     help_text = (
-        f"<blockquote><b>🤖 𝐁𝐎𝐓 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 𝐌𝐄𝐍𝐔</b>\n"
-        f"━━━━━━━━━━━━━━━━━\n\n"
-        f"<b>💎 𝐌𝐋𝐁Ｂ 𝐃𝐢𝐚𝐦𝐨𝐧𝐝𝐬 (ဝယ်ယူရန်)</b>\n"
-        f"🇧🇷 BR MLBB: <code>msc/mlb/br/b ID (Zone) Pack</code>\n"
-        f"🇵🇭 PH MLBB: <code>mlp/ph/p ID (Zone) Pack</code>\n\n"
-        f"<b>♟️ 𝐌𝐚𝐠𝐢𝐜 𝐂𝐡𝐞𝐬𝐬 (ဝယ်ယူရန်)</b>\n"
-        f"🇧🇷 BR MCC: <code>mcc/mcb ID (Zone) Pack</code>\n"
-        f"🇵🇭 PH MCC: <code>mcp ID (Zone) Pack</code>\n"
-        f"━━━━━━━━━━━━━━━━━\n\n"
-        f"<b>👤 𝐔𝐬𝐞𝐫 𝐓𝐨𝐨𝐥𝐬 (အသုံးပြုသူများအတွက်)</b>\n"
-        f"🔹 <code>.topup Code b</code>  : BR Smile Code ဖြည့်ရန်\n"
-        f"🔹 <code>.topup Code p</code>  : PH Smile Code ဖြည့်ရန်\n"
-        f"🔹 <code>.bal</code>      : Owner = Official Balance / User = User Wallet\n"
-        f"🔹 <code>.addbal USER_ID AMOUNT</code> : Owner balance ထည့်ရန်\n"
-        f"🔹 <code>.rmbal USER_ID AMOUNT</code> : Owner balance ပြန်နှုတ်ရန်\n"
-        f"🔹 <code>.his</code>      : မိမိဝယ်ယူခဲ့သော မှတ်တမ်းကြည့်ရန်\n"
-        f"🔹 <code>.clean</code>    : မှတ်တမ်းများ ဖျက်ရန်\n"
+        "🤖 <b>Sajii Dia BOT COMMANDS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "👤 <b>USER COMMANDS</b>\n\n"
+        "💎 <b>MLBB Order</b>\n"
+        "<code>B [ID] [Zone] [Amt]</code> — BR Server\n"
+        "<code>P [ID] [Zone] [Amt]</code> — PH Server\n\n"
+        "🎮 <b>Magic Chess Order</b>\n"
+        "<code>.mcb [ID] [Zone] [Amt]</code> — BR\n"
+        "<code>.mcp [ID] [Zone] [Amt]</code> — PH\n\n"
+        "🪙 <b>Smile Code Topup</b>\n"
+        "<code>.topup [Code] B</code>\n"
+        "<code>.topup [Code] P</code>\n\n"
+        "🛠️ <b>Tools</b>\n"
+        "<code>.role [ID] [Zone]</code> — Region စစ်ရန်\n"
+        "<code>.bal</code> — Coin Balance\n"
+        "<code>.his</code> — မှတ်တမ်းကြည့်ရန်\n"
+        "<code>.listmlbb</code> — MLBB ဈေးနှုန်း\n"
+        "<code>.listmcgg</code> — MCGG ဈေးနှုန်း"
     )
-    
-    if is_owner:
-        help_text += (
-            f"\n━━━━━━━━━━━━━━━━━\n"
-            f"<b>👑 𝐎𝐰𝐧𝐞𝐫 𝐓𝐨𝐨𝐥𝐬 (Admin သီးသန့်)</b>\n\n"
-            f"<b>👥 ယူဆာစီမံခန့်ခွဲမှု</b>\n"
-            f"🔸 <code>.add ID</code>    : အသုံးပြုခွင့်ပေးရန်\n"
-            f"🔸 <code>.remove ID</code> : အသုံးပြုခွင့်ပိတ်ရန်\n"
-            f"🔸 <code>.users</code>     : User စာရင်းအားလုံး ကြည့်ရန်\n\n"
-            f"🔸 <code>.topcus</code>      : ငွေအများဆုံးသုံးထားသူများ ကြည့်ရန်\n"
-            f"🔸 <code>.setvip ID</code>   : VIP အဖြစ် သတ်မှတ်ရန်/ဖြုတ်ရန်\n\n"
-            f"<b>⚙️ System Setup</b>\n"
-            f"🔸 <code>.cookies</code>     : Cookie အခြေအနေ စစ်ဆေးရန်\n"
-            f"🔸 <code>/setcookie</code>   : Main Cookie အသစ်ပြောင်းရန်\n"
-        )
-        
-    help_text += f"</blockquote>"
+
     await message.reply(help_text, parse_mode=ParseMode.HTML)
 
 
