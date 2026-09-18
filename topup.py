@@ -1687,7 +1687,7 @@ async def process_topup_job_br(job: TopupJob):
                         f"<code>Code   : {activation_code} (BR)\n"
                         f"Amount : {fmt_amount:,}\n"
                         f"Added  : +{added_amount:,.1f} 🪙</code>\n"
-                        f"{flag} <code>Total  : {assets:,.1f} 🪙</code>"
+                        f"<code>Total  : {assets:,.1f} 🪙</code>"
                     )
                     await loading_msg.edit_text(msg, parse_mode=ParseMode.HTML)
                 else: 
@@ -2199,55 +2199,108 @@ async def remove_scam_id(message: types.Message):
         await message.reply(f"⚠️ ထို ID သည် Scammer စာရင်းထဲတွင် မရှိပါ။")
 
 
+
+@dp.message(or_f(Command("listmlbb"), F.text.regexp(r"(?i)^\.listmlbb$")))
+async def handle_listmlbb(message: types.Message):
+    pricelist = (
+        "💎 MOBILE LEGENDS PRICELIST 💎\n"
+        "=========================\n\n"
+
+        "🇧🇷 Brazil (BR) Server\n"
+        "-------------------------\n"
+        "86             : 61.5 🪙\n"
+        "172            : 122.0 🪙\n"
+        "257            : 177.5 🪙\n"
+        "343            : 239.0 🪙\n"
+        "429            : 299.5 🪙\n"
+        "514            : 355.0 🪙\n"
+        "600            : 416.5 🪙\n"
+        "706            : 480.0 🪙\n"
+        "792            : 541.5 🪙\n"
+        "878            : 602.0 🪙\n"
+        "963            : 657.5 🪙\n"
+        "1049           : 719.0 🪙\n"
+        "1135           : 779.5 🪙\n"
+        "1220           : 835.0 🪙\n"
+        "1412           : 960.0 🪙\n"
+        "1584           : 1082.0 🪙\n"
+        "1669           : 1137.5 🪙\n"
+        "1755           : 1199.0 🪙\n"
+        "2195           : 1453.0 🪙\n"
+        "3688           : 2424.0 🪙\n"
+        "5100           : 3384.0 🪙\n"
+        "5532           : 3660.0 🪙\n"
+        "7376           : 4848.0 🪙\n"
+        "9288           : 6079.0 🪙\n"
+        "tp            : 402.5 🪙\n"
+        "wp             : 76.0 🪙 (wp1-10)\n"
+        "web            : 39.0 🪙\n"
+        "meb            : 196.5 🪙\n"
+        "55              : 39.0 🪙\n"
+        "165             : 116.9 🪙\n"
+        "275             : 187.5 🪙\n"
+        "565             : 385.0 🪙\n\n"
+
+        "🇵🇭 Philippines (PH) Server\n"
+        "-------------------------\n"
+        "11             : 9.5 🪙\n"
+        "22             : 19.0 🪙\n"
+        "56             : 47.5 🪙\n"
+        "112            : 95.0 🪙\n"
+        "223            : 190.0 🪙\n"
+        "336            : 285.0 🪙\n"
+        "570            : 475.0 🪙\n"
+        "1163           : 950.0 🪙\n"
+        "2398           : 1900.0 🪙\n"
+        "6042           : 4750.0 🪙\n"
+        "wp         : 95.0 🪙\n"
+        "meb            : 233.7 🪙\n"
+        "web            : 47.46 🪙\n"
+        "========================="
+    )
+
+    await message.reply(f"<pre>{pricelist}</pre>", parse_mode=ParseMode.HTML)
+
+
+
+
 @dp.message(or_f(Command("help"), F.text.regexp(r"(?i)^\.help$")))
 async def send_help_message(message: types.Message):
     is_owner = (message.from_user.id == OWNER_ID)
-    help_image_path = os.path.join(os.path.dirname(__file__), "assets", "help.jpg")
-
-    # Try to send the command poster first. If the image is missing,
-    # unreadable, or Telegram rejects the photo, fall back to plain text.
-    if os.path.exists(help_image_path):
-        try:
-            with open(help_image_path, "rb") as photo_file:
-                photo = BufferedInputFile(photo_file.read(), filename="help.jpg")
-            caption = "🤖 <b>Sajii Dia BOT Commands</b>\n"
-            if is_owner:
-                caption += "👑 <b>Owner mode</b> — Admin commands are available to you."
-            else:
-                caption += "👤 <b>User mode</b> — Use the commands shown above."
-            await message.reply_photo(
-                photo=photo,
-                caption=caption,
-                parse_mode=ParseMode.HTML,
-            )
-            return
-        except Exception as e:
-            print(f"⚠️ Failed to send help image, using text fallback: {e}")
-
-    # Text fallback: used when the help image is missing/unreadable or
-    # Telegram cannot send the photo.
+    
     help_text = (
-        "🤖 <b>Sajii Dia BOT COMMANDS</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "👤 <b>USER COMMANDS</b>\n\n"
-        "💎 <b>MLBB Order</b>\n"
-        "<code>B [ID] [Zone] [Amt]</code> — BR Server\n"
-        "<code>P [ID] [Zone] [Amt]</code> — PH Server\n\n"
-        "🎮 <b>Magic Chess Order</b>\n"
-        "<code>.mcb [ID] [Zone] [Amt]</code> — BR\n"
-        "<code>.mcp [ID] [Zone] [Amt]</code> — PH\n\n"
-        "🪙 <b>Smile Code Topup</b>\n"
-        "<code>.topup [Code] B</code>\n"
-        "<code>.topup [Code] P</code>\n\n"
-        "🛠️ <b>Tools</b>\n"
-        "<code>.role [ID] [Zone]</code> — Region စစ်ရန်\n"
-        "<code>.bal</code> — Coin Balance\n"
-        "<code>.his</code> — မှတ်တမ်းကြည့်ရန်\n"
-        "<code>.listmlbb</code> — MLBB ဈေးနှုန်း\n"
-        "<code>.listmcgg</code> — MCGG ဈေးနှုန်း"
+        f"<blockquote><b>🤖 Sajii Dia BOT COMMANDS</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"👤 <b>USER COMMANDS</b>\n\n"
+        f"💎 <b>MLBB Order</b>\n"
+        f"B [ID] [Zone] [Amt] — BR Server\n"
+        f"P [ID] [Zone] [Amt] — PH Server\n\n"
+        f"🎮 <b>Magic Chess Order</b>\n"
+        f"<code>.mcb</code> [ID] [Zone] [Amt] — BR\n"
+        f"<code>.mcp</code> [ID] [Zone] [Amt] — PH\n\n"
+        f"🪙 <b>Smile Code Topup</b>\n"
+        f"<code>.topup</code> [Code] B\n"
+        f"<code>.topup</code> [Code] P\n\n"
+        f"🛠️ <b>Tools</b>\n"
+        f"<code>.role</code> — [ID] [Zone] Region စစ်ရန်\n"
+        f"<code>.bal</code> — Coin Balance\n"
+        f"<code>.his</code> — မှတ်တမ်းကြည့်ရန်\n"
+        f"<code>.listmlbb</code> — MLBB ဈေးနှုန်း\n"
+        f"<code>.listmcgg</code> — MCGG ဈေးနှုန်း\n"
     )
-
+    
+    if is_owner:
+        help_text += (
+            f"\n━━━━━━━━━━━━━━━━━\n"
+            f"<b>👑 𝐎𝐰𝐧𝐞𝐫 𝐓𝐨𝐨ls (Admin သီးသန့်)</b>\n\n"
+            f"🔸 <code>.add ID</code> : အသုံးပြုခွင့်ပေးရန်\n"
+            f"🔸 <code>.remove ID</code> : အသုံးပြုခွင့်ပိတ်ရန်\n"
+            f"🔸 <code>.users</code> : User စာရင်းအားလုံး ကြည့်ရန်\n"
+        )
+        
+    help_text += f"</blockquote>"
     await message.reply(help_text, parse_mode=ParseMode.HTML)
+
 
 
 @dp.message(Command("start"))
