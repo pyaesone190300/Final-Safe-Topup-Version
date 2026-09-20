@@ -1679,17 +1679,32 @@ async def process_topup_job_br(job: TopupJob):
                     if card_amount > 0 and added_amount + 0.01 < card_amount:
                         await db.update_topup_status(activation_code, "uncertain", error=f"Verified balance increase {added_amount} is below card amount {card_amount}")
                         return await loading_msg.edit_text("⚠️ Balance verification mismatch. No success/amount was reported. Please verify the Smile.one balance before retrying.")
+                    
                     await db.update_topup_status(activation_code, "success", amount=added_amount)
-                    await db.change_user_balance(tg_id, added_amount) 
+
+                    # --- Fees တွက်ချက်ပြီး ဖြတ်တောက်မည့် Code အသစ် ---
+                    if added_amount < 1000:
+                        fee = 1.0
+                    else:
+                        # ၁၀၀၀ ပြည့်တိုင်း ၂ ကျပ်နှုန်း ဖြတ်ရန်
+                        fee = float((added_amount // 1000) * 2)
+                        
+                    final_amount = added_amount - fee
+                    
+                    # User Wallet ထဲသို့ Fees နှုတ်ပြီးသား ပမာဏကိုသာ ထည့်ရန်
+                    await db.change_user_balance(tg_id, final_amount) 
+                    
                     fmt_amount = int(added_amount) if added_amount % 1 == 0 else added_amount
+                    fmt_final_amount = int(final_amount) if final_amount % 1 == 0 else final_amount
                     assets = new_bal.get('br_balance', 0.0)
                     flag = f"<tg-emoji emoji-id='{BR_EMOJI}'>🇧🇷</tg-emoji>"
                         
                     msg = (
                         f"✅ <b>Code Top-Up Successful</b>\n\n"
                         f"<code>Code   : {activation_code} (BR)\n"
-                        f"Amount : {fmt_amount:,}\n"
-                        f"Added  : +{added_amount:,.1f} 🪙</code>\n"
+                        f"Amount : {fmt_amount:,} 🪙\n"
+                        f"Fee    : -{fee} 🪙\n"
+                        f"Added  : +{fmt_final_amount:,.1f} 🪙</code>\n"
                         f"<code>Total  : {assets:,.1f} 🪙</code>"
                     )
                     await loading_msg.edit_text(msg, parse_mode=ParseMode.HTML)
@@ -1700,8 +1715,6 @@ async def process_topup_job_br(job: TopupJob):
                 
         except Exception as e: 
             await loading_msg.edit_text(f"❌ Error: {str(e)}")
-
-
 
 
 async def process_topup_job_ph(job: TopupJob):
@@ -1806,17 +1819,32 @@ async def process_topup_job_ph(job: TopupJob):
                     if card_amount > 0 and added_amount + 0.01 < card_amount:
                         await db.update_topup_status(activation_code, "uncertain", error=f"Verified balance increase {added_amount} is below card amount {card_amount}")
                         return await loading_msg.edit_text("⚠️ Balance verification mismatch. No success/amount was reported. Please verify the Smile.one balance before retrying.")
+                    
                     await db.update_topup_status(activation_code, "success", amount=added_amount)
-                    await db.change_user_balance(tg_id, added_amount) 
+                    
+                    # --- Fees တွက်ချက်ပြီး ဖြတ်တောက်မည့် Code အသစ် ---
+                    if added_amount < 1000:
+                        fee = 1.0
+                    else:
+                        # ၁၀၀၀ ပြည့်တိုင်း ၂ ကျပ်နှုန်း ဖြတ်ရန်
+                        fee = float((added_amount // 1000) * 2)
+                        
+                    final_amount = added_amount - fee
+                    
+                    # User Wallet ထဲသို့ Fees နှုတ်ပြီးသား ပမာဏကိုသာ ထည့်ရန်
+                    await db.change_user_balance(tg_id, final_amount) 
+                    
                     fmt_amount = int(added_amount) if added_amount % 1 == 0 else added_amount
+                    fmt_final_amount = int(final_amount) if final_amount % 1 == 0 else final_amount
                     assets = new_bal.get('ph_balance', 0.0)
                     flag = f"<tg-emoji emoji-id='{PH_EMOJI}'>🇵🇭</tg-emoji>"
                         
                     msg = (
                         f"✅ <b>Code Top-Up Successful</b>\n\n"
                         f"<code>Code   : {activation_code} (PH)\n"
-                        f"Amount : {fmt_amount:,}\n"
-                        f"Added  : +{added_amount:,.1f} 🪙</code>\n"
+                        f"Amount : {fmt_amount:,} 🪙\n"
+                        f"Fee    : -{fee} 🪙\n"
+                        f"Added  : +{fmt_final_amount:,.1f} 🪙</code>\n"
                         f"{flag} <code>Total  : {assets:,.1f} 🪙</code>"
                     )
                     await loading_msg.edit_text(msg, parse_mode=ParseMode.HTML)
@@ -1827,6 +1855,7 @@ async def process_topup_job_ph(job: TopupJob):
                 
         except Exception as e: 
             await loading_msg.edit_text(f"❌ Error: {str(e)}")
+
 
 
 
