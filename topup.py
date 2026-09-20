@@ -1680,6 +1680,7 @@ async def process_topup_job_br(job: TopupJob):
                         await db.update_topup_status(activation_code, "uncertain", error=f"Verified balance increase {added_amount} is below card amount {card_amount}")
                         return await loading_msg.edit_text("⚠️ Balance verification mismatch. No success/amount was reported. Please verify the Smile.one balance before retrying.")
                     await db.update_topup_status(activation_code, "success", amount=added_amount)
+                    await db.change_user_balance(tg_id, added_amount) 
                     fmt_amount = int(added_amount) if added_amount % 1 == 0 else added_amount
                     assets = new_bal.get('br_balance', 0.0)
                     flag = f"<tg-emoji emoji-id='{BR_EMOJI}'>🇧🇷</tg-emoji>"
@@ -1806,6 +1807,7 @@ async def process_topup_job_ph(job: TopupJob):
                         await db.update_topup_status(activation_code, "uncertain", error=f"Verified balance increase {added_amount} is below card amount {card_amount}")
                         return await loading_msg.edit_text("⚠️ Balance verification mismatch. No success/amount was reported. Please verify the Smile.one balance before retrying.")
                     await db.update_topup_status(activation_code, "success", amount=added_amount)
+                    await db.change_user_balance(tg_id, added_amount) 
                     fmt_amount = int(added_amount) if added_amount % 1 == 0 else added_amount
                     assets = new_bal.get('ph_balance', 0.0)
                     flag = f"<tg-emoji emoji-id='{PH_EMOJI}'>🇵🇭</tg-emoji>"
