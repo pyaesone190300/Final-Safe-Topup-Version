@@ -1505,46 +1505,38 @@ async def handle_check_role(message: types.Message):
         await loading_msg.edit_text(f"❌ System Error: {html.escape(str(e))}", parse_mode=ParseMode.HTML)
 
 
-@dp.message(F.text.regexp(r"(?i)^\.topup\s+([a-zA-Z0-9]+)\s+b\s*$"))
-async def handle_topup_br(message: types.Message):
+@dp.message(F.text.regexp(r"(?i)^\.topup(?:\s+|$)"))
+async def handle_topup_smart(message: types.Message):
     if not await is_authorized(message.from_user.id):
         return await message.reply("ɴᴏᴛ ᴀᴜᴛʜᴏʀɪᴢᴇᴅ ᴜsᴇʀ.")
-    match = re.search(r"(?i)^\.topup\s+([a-zA-Z0-9]+)\s+b\s*$", message.text.strip())
-    activation_code = match.group(1).strip()
+    
+    parts = message.text.strip().split()
+    if len(parts) < 2:
+        return await message.reply(" Usage: `.topup <code1> <code2> ...` (Up to 5 codes)")
+        
+    codes = parts[1:]
+    if len(codes) > 5:
+        return await message.reply("❌ တစ်ကြိမ်လျှင် Code အများဆုံး (၅) ခုသာ ထည့်သွင်းနိုင်ပါသည်။")
+        
     tg_id = str(message.from_user.id)
-    created, existing = await db.create_topup_record(tg_id, activation_code, "BR")
-    if not created:
-        return await message.reply(
-            f"⚠️ Code `{activation_code}` already submitted. "
-            f"Status: `{(existing or {}).get('status', 'unknown')}`"
-        )
-    loading_msg = await message.reply(f"⏳ Code `{activation_code}` (BR) queued. Please wait...")
-    await TOPUP_QUEUE.put(TopupJob(tg_id, activation_code, "BR", loading_msg))
-    await loading_msg.edit_text(
-        f"⏳ Code `{activation_code}` (BR) is queued.\\n"
-        f"Queue position: {TOPUP_QUEUE.qsize()}"
-    )
+    
+    for code in codes:
+        activation_code = code.strip()
+        if not activation_code.isalnum():
+            await message.reply(f"⚠️ Invalid code format: `{activation_code}`")
+            continue
+            
+        created, existing = await db.create_topup_record(tg_id, activation_code, "AUTO")
+        if not created:
+            await message.reply(
+                f"Code `{activation_code}` already submitted. "
+                f"Status: `{(existing or {}).get('status', 'unknown')}`"
+            )
+            continue
+            
+        loading_msg = await message.reply(f"Code `{activation_code}` queued. Checking region automatically...")
+        await TOPUP_QUEUE.put(TopupJob(tg_id, activation_code, "AUTO", loading_msg))
 
-
-@dp.message(F.text.regexp(r"(?i)^\.topup\s+([a-zA-Z0-9]+)\s+p\s*$"))
-async def handle_topup_ph(message: types.Message):
-    if not await is_authorized(message.from_user.id):
-        return await message.reply("ɴᴏᴛ ᴀᴜᴛʜᴏʀɪᴢᴇᴅ ᴜsᴇʀ.")
-    match = re.search(r"(?i)^\.topup\s+([a-zA-Z0-9]+)\s+p\s*$", message.text.strip())
-    activation_code = match.group(1).strip()
-    tg_id = str(message.from_user.id)
-    created, existing = await db.create_topup_record(tg_id, activation_code, "PH")
-    if not created:
-        return await message.reply(
-            f"⚠️ Code `{activation_code}` already submitted. "
-            f"Status: `{(existing or {}).get('status', 'unknown')}`"
-        )
-    loading_msg = await message.reply(f"⏳ Code `{activation_code}` (PH) queued. Please wait...")
-    await TOPUP_QUEUE.put(TopupJob(tg_id, activation_code, "PH", loading_msg))
-    await loading_msg.edit_text(
-        f"⏳ Code `{activation_code}` (PH) is queued.\\n"
-        f"Queue position: {TOPUP_QUEUE.qsize()}"
-    )
 
 
 async def topup_worker():
@@ -1556,6 +1548,8 @@ async def topup_worker():
                 await process_topup_job_br(job)
             elif job.region == "PH":
                 await process_topup_job_ph(job)
+            elif job.region == "AUTO":
+                await process_topup_job_auto(job)
             else:
                 await db.update_topup_status(job.activation_code, "failed", error="Unsupported region")
                 await job.loading_message.edit_text("❌ Unsupported top-up region.")
@@ -1565,16 +1559,12 @@ async def topup_worker():
             print(f"❌ Top-up worker error: {e}")
             try:
                 await db.update_topup_status(job.activation_code, "failed", error=str(e)[:1000])
-            except Exception:
-                pass
-            try:
-                await job.loading_message.edit_text(
-                    f"❌ Top-up system error: {html.escape(str(e))}"
-                )
+                await job.loading_message.edit_text(f"❌ Top-up system error: {html.escape(str(e))}")
             except Exception:
                 pass
         finally:
             TOPUP_QUEUE.task_done()
+
 
 
 async def process_topup_job_br(job: TopupJob):
@@ -1855,6 +1845,161 @@ async def process_topup_job_ph(job: TopupJob):
                 
         except Exception as e: 
             await loading_msg.edit_text(f"❌ Error: {str(e)}")
+
+
+
+async def process_topup_job_auto(job: TopupJob):
+    activation_code = job.activation_code
+    tg_id = job.user_id
+    loading_msg = job.loading_message
+    await db.update_topup_status(activation_code, "processing")
+    
+    async with smile_account_lock:
+        scraper = await get_main_scraper()
+        
+        # BR ကို အရင်စစ်ဆေးပြီး မအောင်မြင်ပါက PH ကို စစ်ဆေးမည့် List
+        regions_to_try = [
+            {
+                'name': 'BR',
+                'page_url': 'https://www.smile.one/customer/activationcode',
+                'check_url': 'https://www.smile.one/smilecard/pay/checkcard',
+                'pay_url': 'https://www.smile.one/smilecard/pay/payajax',
+                'base_referer': 'https://www.smile.one/',
+                'balance_check_url': 'https://www.smile.one/customer/order',
+                'emoji': BR_EMOJI
+            },
+            {
+                'name': 'PH',
+                'page_url': 'https://www.smile.one/ph/customer/activationcode',
+                'check_url': 'https://www.smile.one/ph/smilecard/pay/checkcard',
+                'pay_url': 'https://www.smile.one/ph/smilecard/pay/payajax',
+                'base_referer': 'https://www.smile.one/ph/',
+                'balance_check_url': 'https://www.smile.one/ph/customer/order',
+                'emoji': PH_EMOJI
+            }
+        ]
+        
+        try:
+            for region in regions_to_try:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 
+                    'Accept': 'text/html',
+                    'Referer': region['base_referer']
+                }
+                
+                res = await scraper.get(region['page_url'], headers=headers)
+                
+                if "login" in str(res.url).lower() or res.status_code in [403, 503]: 
+                    await loading_msg.edit_text("⚠️ <b>Cookies Expired!</b>\n\nAuto-login စတင်နေပါသည်... ခဏစောင့်ပြီး ပြန်လည်ကြိုးစားပါ။", parse_mode=ParseMode.HTML)
+                    success = await auto_login_and_get_cookie()
+                    if not success: 
+                        await notify_owner("❌ <b>Critical:</b> Auto-Login မအောင်မြင်ပါ။ `/setcookie` ဖြင့် အသစ်ထည့်ပေးပါ။")
+                    return
+
+                soup = BeautifulSoup(res.text, 'html.parser')
+                csrf_token = soup.find('meta', {'name': 'csrf-token'})
+                
+                if csrf_token:
+                    csrf_token = csrf_token.get('content')
+                elif soup.find('input', {'name': '_csrf'}):
+                    csrf_token = soup.find('input', {'name': '_csrf'}).get('value')
+                else:
+                    csrf_token = None
+                    
+                if not csrf_token: 
+                    await loading_msg.edit_text("❌ CSRF Token ရှာမတွေ့ပါ။ Cookie သက်တမ်းကုန်နေနိုင်ပါသည်။")
+                    return
+
+                ajax_headers = headers.copy()
+                ajax_headers.update({
+                    'X-Requested-With': 'XMLHttpRequest', 
+                    'Origin': 'https://www.smile.one', 
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                })
+
+                check_res_raw = await scraper.post(
+                    region['check_url'], 
+                    data={'_csrf': csrf_token, 'pin': activation_code}, 
+                    headers=ajax_headers
+                )
+                check_res = check_res_raw.json()
+                code_status = str(check_res.get('code', check_res.get('status', '')))
+                
+                # Code မှန်ကန်ပါက ထို Region တွင် ငွေဖြည့်သွင်းမှုကို ဆက်လက်လုပ်ဆောင်မည်
+                if code_status in ['200', '201', '0', '1'] or 'success' in str(check_res.get('msg', '')).lower():
+                    card_amount = 0.0
+                    try:
+                        if 'data' in check_res and isinstance(check_res['data'], dict):
+                            val = check_res['data'].get('amount', check_res['data'].get('money', 0))
+                            if val: 
+                                card_amount = float(val)
+                    except: 
+                        pass
+                        
+                    old_bal_value, old_bal_ok = await get_verified_smile_balance(
+                        scraper, headers, region['balance_check_url'], region['name']
+                    )
+                    if not old_bal_ok:
+                        await db.update_topup_status(activation_code, "failed", error="Unable to verify pre-payment balance")
+                        return await loading_msg.edit_text("❌ Balance verification failed. Payment was not attempted.")
+                    
+                    pay_res_raw = await scraper.post(
+                        region['pay_url'], 
+                        data={'_csrf': csrf_token, 'sec': activation_code}, 
+                        headers=ajax_headers
+                    )
+                    pay_res = pay_res_raw.json()
+                    pay_status = str(pay_res.get('code', pay_res.get('status', '')))
+                    
+                    if pay_status in ['200', '0', '1'] or 'success' in str(pay_res.get('msg', '')).lower():
+                        await asyncio.sleep(3)
+                        new_bal_value, new_bal_ok = await get_verified_smile_balance(
+                            scraper, headers, region['balance_check_url'], region['name'], retries=5
+                        )
+                        if not new_bal_ok:
+                            return await loading_msg.edit_text("⚠️ Payment response was received, but new balance could not be verified.")
+                        
+                        added_amount = round(new_bal_value - old_bal_value, 2)
+                        if added_amount <= 0:
+                            return await loading_msg.edit_text("⚠️ Payment response was received, but balance did not increase.")
+                        
+                        await db.update_topup_status(activation_code, "success", amount=added_amount)
+
+                        # --- Fees တွက်ချက်ခြင်း ---
+                        if added_amount < 1000:
+                            fee = 2.0
+                        else:
+                            fee = float((added_amount // 1000) * 2)
+                            
+                        final_amount = added_amount - fee
+                        
+                        await db.change_user_balance(tg_id, final_amount) 
+                        
+                        fmt_amount = int(added_amount) if added_amount % 1 == 0 else added_amount
+                        fmt_final_amount = int(final_amount) if final_amount % 1 == 0 else final_amount
+                        flag = f"<tg-emoji emoji-id='{region['emoji']}'>🇧🇷</tg-emoji>" if region['name'] == "BR" else f"<tg-emoji emoji-id='{region['emoji']}'>🇵🇭</tg-emoji>"
+                            
+                        msg = (
+                            f"✅ <b>Code Top-Up Successful</b>\n\n"
+                            f"<code>Code   : {activation_code} ({region['name']})\n"
+                            f"Amount : {fmt_amount:,} 🪙\n"
+                            f"Fee    : -{fee} 🪙\n"
+                            f"Added  : +{fmt_final_amount:,.1f} 🪙</code>\n"
+                            f"{flag} <code>Total  : {new_bal_value:,.1f} 🪙</code>"
+                        )
+                        await loading_msg.edit_text(msg, parse_mode=ParseMode.HTML)
+                        return # Region တစ်ခုတွင် အောင်မြင်သွားပါက ကျန် Region များကို ထပ်မစစ်တော့ပါ။
+                        
+                    else: 
+                        await loading_msg.edit_text(f"❌ Payment failed during redemption on {region['name']}.")
+                        return
+                
+            # Region (၂) ခုလုံးတွင် Invalid ဖြစ်ခဲ့ပါက-
+            await loading_msg.edit_text("Cʜᴇᴄᴋ Fᴀɪʟᴇᴅ❌\n(Code is invalid or might have been used)")
+            
+        except Exception as e: 
+            await loading_msg.edit_text(f"❌ Error: {str(e)}")
+
 
 
 
