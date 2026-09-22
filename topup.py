@@ -74,10 +74,10 @@ GLOBAL_CSRF = {'mlbb_br': None, 'mlbb_ph': None, 'mcc_br': None, 'mcc_ph': None}
 # 2. Package Definitions
 # ==========================================
 DOUBLE_DIAMOND_PACKAGES = {
-    'B50': [{'pid': '22590', 'price': 39.0, 'name': '50+50 💎'}],
-    'B150': [{'pid': '22591', 'price': 116.9, 'name': '150+150 💎'}],
-    'B250': [{'pid': '22592', 'price': 187.5, 'name': '250+250 💎'}],
-    'B500': [{'pid': '22593', 'price': 385.0, 'name': '500+500 💎'}],
+    'b50': [{'pid': '22590', 'price': 39.0, 'name': '50+50 💎'}],
+    'b150': [{'pid': '22591', 'price': 116.9, 'name': '150+150 💎'}],
+    'b250': [{'pid': '22592', 'price': 187.5, 'name': '250+250 💎'}],
+    'b500': [{'pid': '22593', 'price': 385.0, 'name': '500+500 💎'}],
 }
 
 BR_PACKAGES = {
