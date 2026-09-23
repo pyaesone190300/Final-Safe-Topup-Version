@@ -2663,8 +2663,8 @@ async def send_welcome(message: types.Message):
 class MaintenanceMiddleware(BaseMiddleware):
     async def __call__(self, handler, event: types.Message, data: dict):
         if IS_MAINTENANCE and event.from_user.id != OWNER_ID:
-            await event.reply("⚠️ ပြုပြင်ဆောင်ရွက်နေပါသဖြင့် Topup ဘော့အား ခနရပ်ထားပါသည်။")
-            return 
+            await event.reply("ပြုပြင်ဆောင်ရွက်မှုများလုပ်နေပါသဖြင့် Topup ဘော့အား ခနရပ်ထားပါသည်။")
+            return
         return await handler(event, data)
 
 
