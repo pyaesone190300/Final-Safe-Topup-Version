@@ -2101,10 +2101,12 @@ async def list_resellers(message: types.Message):
     
     for r in resellers_list:
         role = "owner" if r["tg_id"] == str(OWNER_ID) else "authorized"
-        user_list.append(f"🟢 ID: <code>{r['tg_id']}</code> ({role})")
+        balance = r.get("balance", 0.0)
+        user_list.append(f"🟢 <code>{r['tg_id']}</code> | 🪙 <code>{balance:,.2f}</code> ({role})")
         
     final_text = "\n".join(user_list) if user_list else "No users found."
-    await message.reply(f"🟢 **Authorized Users List:**\n\n{final_text}", parse_mode=ParseMode.HTML)
+    await message.reply(f"🟢 **Authorized Users & Balances:**\n\n{final_text}", parse_mode=ParseMode.HTML)
+
 
 
 @dp.message(Command("setcookie"))
@@ -2320,6 +2322,96 @@ async def handle_ph_mcc(message: types.Message):
         await execute_buy_process(message, lines, regex, 'PH', PH_MCC_PACKAGES, process_mcc_order, "MCC", is_mcc=True)
     except Exception as e: 
         await message.reply(f"System Error: {str(e)}")
+
+
+
+@dp.message(or_f(Command("his"), F.text.regexp(r"(?i)^\.his(?:$|\s+)")))
+async def check_history_txt_command(message: types.Message):
+    tg_id = message.from_user.id
+
+    if not await is_authorized(tg_id):
+        return await message.reply("ɴᴏᴛ ᴀᴜᴛʜᴏʀɪᴢᴇᴅ ᴜsᴇʀ.")
+
+    parts = message.text.split()
+    target_id = str(tg_id)
+
+    # စာသားတွင် User ID ပါ/မပါ စစ်ဆေးခြင်း
+    if len(parts) > 1:
+        if tg_id == OWNER_ID:
+            target_id = parts[1].strip()
+        else:
+            return await message.reply("❌ အခြား User ၏ မှတ်တမ်းကို Owner သာ ကြည့်ရှုခွင့်ရှိပါသည်။")
+
+    loading_msg = await message.reply(f"⏳ User ID `{target_id}` ၏ မှတ်တမ်းများကို txt ဖိုင်အဖြစ် ပြင်ဆင်နေပါသည်...")
+    
+    # နောက်ဆုံး ဝယ်ယူခဲ့သော အကြောင်းအရာ (၂၅၀) ခုကို ခေါ်ယူမည်
+    history_records = await db.get_user_history(target_id, limit=250)
+    
+    if not history_records:
+        return await loading_msg.edit_text(f"🤷‍♂️ User ID `{target_id}` တွင် ဝယ်ယူထားသော မှတ်တမ်း မရှိသေးပါ။")
+
+    # Txt ဖိုင်အတွင်း ရေးသားမည့် စာသားများကို ပြင်ဆင်ခြင်း
+    txt_content = "=========================================\n"
+    txt_content += "           TRANSACTION HISTORY           \n"
+    txt_content += "=========================================\n"
+    txt_content += f"User ID: {target_id}\n"
+    txt_content += f"Total Records: {len(history_records)} (Max 250)\n"
+    txt_content += "-----------------------------------------\n\n"
+    
+    for idx, record in enumerate(history_records, 1):
+        status_emoji = "✅ SUCCESS" if record.get('status') == 'success' else "❌ FAILED"
+        game_id = record.get('game_id', 'Unknown')
+        zone_id = record.get('zone_id', 'Unknown')
+        item = record.get('item_name', 'Unknown')
+        price = record.get('price', 0.0)
+        date_str = record.get('date_str', '')
+        order_id = record.get('order_id', 'N/A')
+
+        txt_content += f"[{idx}] {status_emoji}\n"
+        txt_content += f"UID    : {game_id} ({zone_id})\n"
+        txt_content += f"Item   : {item}\n"
+        txt_content += f"Price  : {price:,.2f} 🪙\n"
+        txt_content += f"Date   : {date_str}\n"
+        txt_content += f"Serial : {order_id}\n"
+        txt_content += "-----------------------------------------\n"
+
+    # စာသားများကို Bytes အဖြစ်ပြောင်း၍ BufferedInputFile ဖြင့် ဖိုင်တည်ဆောက်ခြင်း
+    file_bytes = txt_content.encode('utf-8')
+    txt_file = BufferedInputFile(file_bytes, filename=f"History_{target_id}.txt")
+    
+    # Document (txt) အဖြစ် ပေးပို့ခြင်း
+    await message.reply_document(
+        document=txt_file, 
+        caption=f"📜 User ID: {target_id} ၏ နောက်ဆုံးဝယ်ယူခဲ့သော မှတ်တမ်း ({len(history_records)}) ခု"
+    )
+    await loading_msg.delete()
+
+
+
+@dp.message(or_f(Command("rmhis"), F.text.regexp(r"(?i)^\.rmhis(?:$|\s+)")))
+async def clear_history_command(message: types.Message):
+    # Owner ဟုတ်/မဟုတ် စစ်ဆေးခြင်း
+    if message.from_user.id != OWNER_ID:
+        return await message.reply("❌ ဤ Command ကို Owner သာ အသုံးပြုနိုင်ပါသည်။")
+        
+    parts = message.text.split()
+    if len(parts) < 2:
+        return await message.reply("အသုံးပြုရမည့်ပုံစံ: `.rmhis <User_ID>`")
+        
+    target_id = parts[1].strip()
+    
+    # Database အတွင်းရှိ သတ်မှတ်ထားသော User ၏ မှတ်တမ်းများကို ရှင်းလင်းခြင်း
+    deleted_count = await db.clear_user_history(target_id)
+    
+    if deleted_count > 0:
+        await message.reply(f"✅ User ID `{target_id}` ၏ ဝယ်ယူမှုမှတ်တမ်းဟောင်း ({deleted_count}) ခုကို အောင်မြင်စွာ ရှင်းလင်းလိုက်ပါပြီ။")
+    else:
+        await message.reply(f"🤷‍♂️ User ID `{target_id}` တွင် ရှင်းလင်းရန် မှတ်တမ်း မရှိပါ။")
+
+
+
+
+
 
 
 @dp.message(or_f(Command("maintenance"), F.text.regexp(r"(?i)^\.maintenance(?:$|\s+)")))
